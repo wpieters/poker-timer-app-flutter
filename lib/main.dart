@@ -24,9 +24,11 @@ class TimerHomePage extends StatefulWidget {
 }
 
 class _TimerHomePageState extends State<TimerHomePage> {
-  List<int> intervals = [45, 45, 30, 30, 15, 15];
+  List<int> intervals = [1, 1, 1, 1, 1, 1];
   int? currentInterval;
   Timer? _timer;
+  Timer? _countdownTimer;
+  int _remainingSeconds = 0;
   String message = "Press start to begin timer.";
   List<BlindColors> blindColorsList = [
     BlindColors(smallBlind: Colors.blue, bigBlind: Colors.white, bigCount: 1),
@@ -62,12 +64,26 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _timer!.cancel();
       _timer = null;
     }
+    if (_countdownTimer != null) {
+      _countdownTimer!.cancel();
+      _countdownTimer = null;
+    }
 
     if (intervals.isNotEmpty) {
       currentInterval = intervals.removeAt(0);
     } else {
       currentInterval = 10;
     }
+
+    _remainingSeconds = currentInterval! * 60;
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        }
+      });
+    });
 
     _timer = Timer(Duration(minutes: currentInterval!), () {
       setState(() {
@@ -85,6 +101,8 @@ class _TimerHomePageState extends State<TimerHomePage> {
   void _stopTimer() {
     _timer?.cancel();
     _timer = null;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
     setState(() {
       message = "Timer stopped.";
       intervals = [45, 45, 30, 30, 15, 15];
@@ -103,11 +121,49 @@ class _TimerHomePageState extends State<TimerHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                buildBlindIcon(currentBlinds.smallBlind, currentBlinds.getSmallCount()), // Small blind icon
-                buildBlindIcon(currentBlinds.bigBlind, currentBlinds.getBigCount()), // Big blind icon
+                SizedBox(
+                  height: 200,
+                  width: 200,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        height: 180,
+                        width: 180,
+                        child: CircularProgressIndicator(
+                          value: currentInterval != null ? _remainingSeconds / (currentInterval! * 60) : 0,
+                          strokeWidth: 12,
+                          backgroundColor: Colors.grey[700],
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                        ),
+                      ),
+                      Text(
+                        currentInterval != null
+                            ? '${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}'
+                            : '--:--',
+                        style: const TextStyle(fontSize: 36, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    SizedBox(width: 120, child: Text('Small Blind', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 2)]))),
+                    SizedBox(width: 120, child: Text('Big Blind', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 2)]))),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    buildBlindIcon(currentBlinds.smallBlind, currentBlinds.getSmallCount()), // Small blind icon
+                    buildBlindIcon(currentBlinds.bigBlind, currentBlinds.getBigCount()), // Big blind icon
+                  ],
+                ),
               ],
             ),
             Text(
