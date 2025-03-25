@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/blind_settings.dart';
 import '../services/settings_service.dart';
+import '../widgets/chip_level_editor.dart';
 
 class SettingsPage extends StatefulWidget {
   final SettingsService settingsService;
@@ -21,11 +22,15 @@ class _SettingsPageState extends State<SettingsPage> {
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _controllers = [];
   bool _hasUnsavedChanges = false;
+  late List<ChipLevel> _chipLevels;
+  late double _volume;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settingsService.getSettings();
+    _chipLevels = List.from(_settings.chipLevels);
+    _volume = _settings.volume;
     _initializeControllers();
   }
 
@@ -61,7 +66,10 @@ class _SettingsPageState extends State<SettingsPage> {
           .map((controller) => int.parse(controller.text))
           .toList();
       
-      final newSettings = _settings.copyWith(intervals: newIntervals);
+      final newSettings = _settings.copyWith(
+        intervals: newIntervals,
+        chipLevels: _chipLevels,
+      );
       await widget.settingsService.saveSettings(newSettings);
       widget.onSettingsChanged(newSettings);
       
@@ -151,6 +159,51 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Sound Volume',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.volume_off),
+                Expanded(
+                  child: Slider(
+                    value: _volume,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 10,
+                    label: '${(_volume * 100).round()}%',
+                    onChanged: (value) {
+                      setState(() {
+                        _volume = value;
+                        _hasUnsavedChanges = true;
+                      });
+                    },
+                  ),
+                ),
+                const Icon(Icons.volume_up),
+              ],
+            ),
+            const SizedBox(height: 32),
+            const Divider(),
+            const Text(
+              'Chip Colors',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ChipLevelEditor(
+              chipLevels: _chipLevels,
+              onChipLevelsChanged: (levels) {
+                setState(() {
+                  _chipLevels = levels;
+                  _hasUnsavedChanges = true;
+                });
+              },
+            ),
+            const SizedBox(height: 32),
+            const Divider(),
             const SizedBox(height: 16),
             Row(
               children: [
