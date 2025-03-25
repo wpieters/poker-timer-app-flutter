@@ -69,6 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final newSettings = _settings.copyWith(
         intervals: newIntervals,
         chipLevels: _chipLevels,
+        volume: _volume,
       );
       await widget.settingsService.saveSettings(newSettings);
       widget.onSettingsChanged(newSettings);
