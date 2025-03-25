@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:poker_timer/blindcolors.dart';
+import 'package:poker_timer/services/settings_service.dart';
+import 'package:poker_timer/pages/settings_page.dart';
 
-void main() => runApp(TimerApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final settingsService = await SettingsService.create();
+  runApp(TimerApp(settingsService: settingsService));
+}
 
 class TimerApp extends StatelessWidget {
+  final SettingsService settingsService;
+
+  const TimerApp({super.key, required this.settingsService});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -13,23 +22,33 @@ class TimerApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: TimerHomePage(),
+      home: TimerHomePage(settingsService: settingsService),
     );
   }
 }
 
 class TimerHomePage extends StatefulWidget {
+  final SettingsService settingsService;
+
+  const TimerHomePage({super.key, required this.settingsService});
   @override
   _TimerHomePageState createState() => _TimerHomePageState();
 }
 
+enum TimerState {
+  initial,   // Start enabled, Stop disabled
+  running,   // Start disabled, Stop enabled
+  paused,    // Resume enabled, Reset enabled
+}
+
 class _TimerHomePageState extends State<TimerHomePage> {
-  List<int> intervals = [1, 1, 1, 1, 1, 1];
+  late List<int> intervals;
   int? currentInterval;
   Timer? _timer;
   Timer? _countdownTimer;
   int _remainingSeconds = 0;
   String message = "Press start to begin timer.";
+  TimerState _timerState = TimerState.initial;
   List<BlindColors> blindColorsList = [
     BlindColors(smallBlind: Colors.blue, bigBlind: Colors.white, bigCount: 1),
     BlindColors(smallBlind: Colors.white, bigBlind: Colors.black, bigCount: 1),
@@ -68,6 +87,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _countdownTimer!.cancel();
       _countdownTimer = null;
     }
+    setState(() {
+      _timerState = TimerState.running;
+    });
 
     if (intervals.isNotEmpty) {
       currentInterval = intervals.removeAt(0);
@@ -104,9 +126,48 @@ class _TimerHomePageState extends State<TimerHomePage> {
     _countdownTimer?.cancel();
     _countdownTimer = null;
     setState(() {
-      message = "Timer stopped.";
-      intervals = [45, 45, 30, 30, 15, 15];
+      if (_timerState == TimerState.running) {
+        _timerState = TimerState.paused;
+        message = "Timer paused.";
+      } else {
+        // Reset
+        _timerState = TimerState.initial;
+        message = "Timer reset.";
+        intervals = widget.settingsService.getSettings().intervals;
+        currentBlindIndex = 0;
+        currentInterval = null;
+        _remainingSeconds = 0;
+      }
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  void _loadSettings() {
+    final settings = widget.settingsService.getSettings();
+    setState(() {
+      intervals = List.from(settings.intervals);
+    });
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          settingsService: widget.settingsService,
+          onSettingsChanged: (newSettings) {
+            setState(() {
+              intervals = List.from(newSettings.intervals);
+            });
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -116,6 +177,12 @@ class _TimerHomePageState extends State<TimerHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Poker Blinds Timer"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _openSettings,
+          ),
+        ],
       ),
       body: Center(
         child: Column(
@@ -171,14 +238,19 @@ class _TimerHomePageState extends State<TimerHomePage> {
               style: const TextStyle(fontSize: 20.0),
             ),
             const SizedBox(height: 20.0),
-            ElevatedButton(
-              onPressed: _startTimer,
-              child: const Text("Start"),
-            ),
-            const SizedBox(height: 10.0),
-            ElevatedButton(
-              onPressed: _stopTimer,
-              child: const Text("Stop"),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _timerState == TimerState.running ? null : _startTimer,
+                  child: Text(_timerState == TimerState.paused ? 'Resume' : 'Start'),
+                ),
+                const SizedBox(width: 20),
+                ElevatedButton(
+                  onPressed: _timerState == TimerState.initial ? null : _stopTimer,
+                  child: Text(_timerState == TimerState.paused ? 'Reset' : 'Stop'),
+                ),
+              ],
             )
           ],
         ),
