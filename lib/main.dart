@@ -81,13 +81,15 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _timerState = TimerState.running;
     });
 
-    if (intervals.isNotEmpty) {
-      currentInterval = intervals.removeAt(0);
-    } else {
-      currentInterval = 10;
+    // Only set a new interval if we're not resuming
+    if (_timerState != TimerState.paused && currentInterval == null) {
+      if (intervals.isNotEmpty) {
+        currentInterval = intervals.removeAt(0);
+      } else {
+        currentInterval = 10;
+      }
+      _remainingSeconds = currentInterval! * 60;
     }
-
-    _remainingSeconds = currentInterval! * 60;
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
@@ -97,7 +99,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
       });
     });
 
-    _timer = Timer(Duration(minutes: currentInterval!), () async {
+    // Calculate the remaining duration based on _remainingSeconds
+    final durationInSeconds = _remainingSeconds;
+    _timer = Timer(Duration(seconds: durationInSeconds), () async {
       // Play sound when timer ends
       final settings = widget.settingsService.getSettings();
       await _audioPlayer.open(
@@ -114,7 +118,11 @@ class _TimerHomePageState extends State<TimerHomePage> {
     });
 
     setState(() {
-      message = "Timer set for $currentInterval minutes.";
+      if (_timerState == TimerState.paused) {
+        message = "Timer resumed with ${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')} remaining.";
+      } else {
+        message = "Timer set for $currentInterval minutes.";
+      }
     });
   }
 
