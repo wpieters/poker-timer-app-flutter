@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:poker_timer/blindcolors.dart';
+import 'package:assets_audio_player/assets_audio_player.dart';
+import 'package:poker_timer/models/blind_settings.dart';
 import 'package:poker_timer/services/settings_service.dart';
 import 'package:poker_timer/pages/settings_page.dart';
 
@@ -42,40 +43,29 @@ enum TimerState {
 }
 
 class _TimerHomePageState extends State<TimerHomePage> {
+  final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer();
   late List<int> intervals;
+  late List<ChipLevel> chipLevels;
   int? currentInterval;
   Timer? _timer;
   Timer? _countdownTimer;
   int _remainingSeconds = 0;
   String message = "Press start to begin timer.";
   TimerState _timerState = TimerState.initial;
-  List<BlindColors> blindColorsList = [
-    BlindColors(smallBlind: Colors.blue, bigBlind: Colors.white, bigCount: 1),
-    BlindColors(smallBlind: Colors.white, bigBlind: Colors.black, bigCount: 1),
-    BlindColors(smallBlind: Colors.black, bigBlind: Colors.red, bigCount: 1),
-    BlindColors(smallBlind: Colors.red, bigBlind: Colors.green, bigCount: 1),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 2),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 4),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 8),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 16),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 32),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 64),
-    BlindColors(smallBlind: Colors.green, bigBlind: Colors.green, bigCount: 128), // we should never realistically reach this
-  ];
   int currentBlindIndex = 0;
 
   @override
   void dispose() {
     _timer?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
   void _updateBlinds() {
-    if (currentBlindIndex < blindColorsList.length - 1) {
+    if (currentBlindIndex < chipLevels.length - 1) {
       currentBlindIndex++;
-    } else {
-      currentBlindIndex = 0;
     }
+    // Stay at final level once reached
   }
 
   void _startTimer() {
@@ -107,7 +97,15 @@ class _TimerHomePageState extends State<TimerHomePage> {
       });
     });
 
-    _timer = Timer(Duration(minutes: currentInterval!), () {
+    _timer = Timer(Duration(minutes: currentInterval!), () async {
+      // Play sound when timer ends
+      final settings = widget.settingsService.getSettings();
+      await _audioPlayer.open(
+        Audio("assets/audio/timer_end.mp3"),
+        autoStart: true,
+        showNotification: false,
+        volume: settings.volume,
+      );
       setState(() {
         _updateBlinds();
         message = "$currentInterval minutes passed!";
@@ -151,6 +149,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
     final settings = widget.settingsService.getSettings();
     setState(() {
       intervals = List.from(settings.intervals);
+      chipLevels = List.from(settings.chipLevels);
     });
   }
 
@@ -163,6 +162,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
           onSettingsChanged: (newSettings) {
             setState(() {
               intervals = List.from(newSettings.intervals);
+              chipLevels = List.from(newSettings.chipLevels);
             });
           },
         ),
@@ -172,7 +172,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    BlindColors currentBlinds = blindColorsList[currentBlindIndex];
+    final currentLevel = chipLevels[currentBlindIndex];
 
     return Scaffold(
       appBar: AppBar(
@@ -227,8 +227,60 @@ class _TimerHomePageState extends State<TimerHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    buildBlindIcon(currentBlinds.smallBlind, currentBlinds.getSmallCount()), // Small blind icon
-                    buildBlindIcon(currentBlinds.bigBlind, currentBlinds.getBigCount()), // Big blind icon
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: currentLevel.smallBlindColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black, width: 2),
+                          ),
+                        ),
+                        if (currentLevel.bigBlindMultiplier > 1)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              "×${currentLevel.bigBlindMultiplier ~/ 2}",
+                              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: currentLevel.bigBlindColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black, width: 2),
+                          ),
+                        ),
+                        if (currentLevel.bigBlindMultiplier > 1)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              "×${currentLevel.bigBlindMultiplier}",
+                              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ],
