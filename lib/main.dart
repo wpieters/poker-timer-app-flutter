@@ -44,6 +44,7 @@ enum TimerState {
 
 class _TimerHomePageState extends State<TimerHomePage> {
   final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer();
+  bool _audioInitialized = false;
   late List<int> intervals;
   late List<ChipLevel> chipLevels;
   int? currentInterval;
@@ -131,12 +132,22 @@ class _TimerHomePageState extends State<TimerHomePage> {
     _timer = Timer(Duration(seconds: durationInSeconds), () async {
       // Play sound when timer ends
       final settings = widget.settingsService.getSettings();
-      await _audioPlayer.open(
-        Audio("assets/audio/timer_end.mp3"),
-        autoStart: true,
-        showNotification: false,
-        volume: settings.volume,
-      );
+      try {
+        if (_audioInitialized) {
+          // If audio is already initialized, just play it
+          await _audioPlayer.play();
+        } else {
+          // Fallback if not initialized
+          await _audioPlayer.open(
+            Audio("assets/audio/timer_end.mp3"),
+            autoStart: true,
+            showNotification: false,
+            volume: settings.volume,
+          );
+        }
+      } catch (e) {
+        print("Error playing audio: $e");
+      }
       setState(() {
         _updateBlinds();
         message = "$currentInterval minutes passed!";
@@ -180,6 +191,21 @@ class _TimerHomePageState extends State<TimerHomePage> {
   void initState() {
     super.initState();
     _loadSettings();
+    _initializeAudio();
+  }
+  
+  void _initializeAudio() {
+    // Pre-load audio to handle web browser restrictions
+    _audioPlayer.open(
+      Audio("assets/audio/timer_end.mp3"),
+      autoStart: false,
+      showNotification: false,
+      volume: widget.settingsService.getSettings().volume,
+    ).then((_) {
+      setState(() {
+        _audioInitialized = true;
+      });
+    });
   }
 
   void _loadSettings() {
