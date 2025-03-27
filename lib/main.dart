@@ -63,9 +63,24 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
   void _updateBlinds() {
     if (currentBlindIndex < chipLevels.length - 1) {
+      // If we have more predefined chip levels, use the next one
       currentBlindIndex++;
+    } else {
+      // We've reached the last predefined level, create a new level with doubled values
+      final lastLevel = chipLevels.last;
+      final newLevel = ChipLevel(
+        smallBlindColor: lastLevel.smallBlindColor,
+        bigBlindColor: lastLevel.bigBlindColor,
+        bigBlindMultiplier: lastLevel.bigBlindMultiplier * 2,
+      );
+      
+      // Add the new level to the list
+      chipLevels.add(newLevel);
+      currentBlindIndex++;
+      
+      // Update the message to indicate blinds have doubled
+      message = "Blinds doubled! New big blind multiplier: ${newLevel.bigBlindMultiplier}";
     }
-    // Stay at final level once reached
   }
 
   void _startTimer() {
@@ -81,14 +96,26 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _timerState = TimerState.running;
     });
 
-    // Only set a new interval if we're not resuming
-    if (_timerState != TimerState.paused && currentInterval == null) {
+    // Handle different scenarios for setting the current interval
+    if (_timerState == TimerState.paused) {
+      // We're resuming, keep the current interval and remaining seconds
+    } else if (currentInterval == null) {
+      // Starting fresh, get the first interval
       if (intervals.isNotEmpty) {
         currentInterval = intervals.removeAt(0);
       } else {
         currentInterval = 10;
       }
       _remainingSeconds = currentInterval! * 60;
+    } else {
+      // Timer expired, move to next interval
+      if (intervals.isNotEmpty) {
+        currentInterval = intervals.removeAt(0);
+        _remainingSeconds = currentInterval! * 60;
+      } else {
+        // No more intervals, stay at current interval (already handled by _updateBlinds)
+        _remainingSeconds = currentInterval! * 60;
+      }
     }
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -113,6 +140,8 @@ class _TimerHomePageState extends State<TimerHomePage> {
       setState(() {
         _updateBlinds();
         message = "$currentInterval minutes passed!";
+        // Reset currentInterval to null to indicate we need a new interval
+        currentInterval = null;
         _startTimer();
       });
     });
