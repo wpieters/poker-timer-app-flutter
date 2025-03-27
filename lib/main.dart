@@ -150,7 +150,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
           await _audioPlayer.play();
         } else {
           await _audioPlayer.open(
-            Audio("assets/audio/timer_end.mp3"),
+            Audio.network("assets/audio/timer_end.mp3"),
             autoStart: true,
             showNotification: false,
             volume: settings.volume,
@@ -212,9 +212,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _webAudioElement?.setAttribute('preload', 'auto');
       _webAudioElement?.volume = widget.settingsService.getSettings().volume;
       
-      // Also initialize the AssetsAudioPlayer as fallback
+      // Initialize the AssetsAudioPlayer with network audio for web compatibility
       _audioPlayer.open(
-        Audio("assets/audio/timer_end.mp3"),
+        Audio.network("assets/audio/timer_end.mp3"),
         autoStart: false,
         showNotification: false,
         volume: widget.settingsService.getSettings().volume,
