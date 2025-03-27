@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:html' as html;
 
 import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:poker_timer/models/blind_settings.dart';
@@ -45,6 +46,7 @@ enum TimerState {
 class _TimerHomePageState extends State<TimerHomePage> {
   final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer();
   bool _audioInitialized = false;
+  html.AudioElement? _webAudioElement;
   late List<int> intervals;
   late List<ChipLevel> chipLevels;
   int? currentInterval;
@@ -133,11 +135,20 @@ class _TimerHomePageState extends State<TimerHomePage> {
       // Play sound when timer ends
       final settings = widget.settingsService.getSettings();
       try {
+        // Try multiple approaches to play audio
+        
+        // 1. Try web audio element first (most reliable for web)
+        if (_webAudioElement != null) {
+          // Reset and play
+          _webAudioElement!.currentTime = 0;
+          _webAudioElement!.volume = settings.volume;
+          _webAudioElement!.play();
+        }
+        
+        // 2. Also try AssetsAudioPlayer as backup
         if (_audioInitialized) {
-          // If audio is already initialized, just play it
           await _audioPlayer.play();
         } else {
-          // Fallback if not initialized
           await _audioPlayer.open(
             Audio("assets/audio/timer_end.mp3"),
             autoStart: true,
@@ -195,17 +206,26 @@ class _TimerHomePageState extends State<TimerHomePage> {
   }
   
   void _initializeAudio() {
-    // Pre-load audio to handle web browser restrictions
-    _audioPlayer.open(
-      Audio("assets/audio/timer_end.mp3"),
-      autoStart: false,
-      showNotification: false,
-      volume: widget.settingsService.getSettings().volume,
-    ).then((_) {
-      setState(() {
-        _audioInitialized = true;
+    try {
+      // Create a web audio element for direct browser API access
+      _webAudioElement = html.AudioElement('assets/audio/timer_end.mp3');
+      _webAudioElement?.setAttribute('preload', 'auto');
+      _webAudioElement?.volume = widget.settingsService.getSettings().volume;
+      
+      // Also initialize the AssetsAudioPlayer as fallback
+      _audioPlayer.open(
+        Audio("assets/audio/timer_end.mp3"),
+        autoStart: false,
+        showNotification: false,
+        volume: widget.settingsService.getSettings().volume,
+      ).then((_) {
+        setState(() {
+          _audioInitialized = true;
+        });
       });
-    });
+    } catch (e) {
+      print("Error initializing audio: $e");
+    }
   }
 
   void _loadSettings() {
@@ -235,6 +255,20 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure audio is initialized on user interaction
+    if (!_audioInitialized && _webAudioElement != null) {
+      // This forces a user interaction with audio
+      _webAudioElement!.play().then((_) {
+        _webAudioElement!.pause();
+        _webAudioElement!.currentTime = 0;
+        setState(() {
+          _audioInitialized = true;
+        });
+      }).catchError((error) {
+        print("Audio initialization error: $error");
+      });
+    }
+    
     final currentLevel = chipLevels[currentBlindIndex];
 
     return Scaffold(
