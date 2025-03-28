@@ -262,9 +262,26 @@ class _SettingsPageState extends State<SettingsPage> {
               IconButton(
                 icon: const Icon(Icons.remove_circle_outline),
                 onPressed: () {
+                  // Dispose the controller we're removing
+                  final controllerToRemove = _controllers[index];
+                  controllerToRemove.dispose();
+                  
                   setState(() {
-                    _controllers[index].dispose();
-                    _controllers.removeAt(index);
+                    // Since _controllers is final, we need to modify its contents
+                    // rather than replacing the entire list
+                    
+                    // Create a temporary list without the controller at the specified index
+                    final tempList = <TextEditingController>[];
+                    for (int i = 0; i < _controllers.length; i++) {
+                      if (i != index) {
+                        tempList.add(_controllers[i]);
+                      }
+                    }
+                    
+                    // Clear the original list and add all items from the temp list
+                    _controllers.clear();
+                    _controllers.addAll(tempList);
+                    
                     _hasUnsavedChanges = true;
                   });
                 },
