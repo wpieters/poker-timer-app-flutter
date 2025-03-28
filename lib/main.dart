@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:js' as js;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
-import 'package:assets_audio_player/assets_audio_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:poker_timer/models/blind_settings.dart';
 import 'package:poker_timer/services/settings_service.dart';
 import 'package:poker_timer/pages/settings_page.dart';
@@ -9,9 +11,6 @@ import 'package:poker_timer/pages/settings_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final settingsService = await SettingsService.create();
-  AssetsAudioPlayer.setupNotificationsOpenAction((notification) {
-    return true;
-  });
   runApp(TimerApp(settingsService: settingsService));
 }
 
@@ -46,8 +45,8 @@ enum TimerState {
 }
 
 class _TimerHomePageState extends State<TimerHomePage> {
-  final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer.newPlayer();
-  bool _audioInitialized = false;
+  // Use a single audio player for simplicity
+  final AudioPlayer _audioPlayer = AudioPlayer();
   late List<int> intervals;
   late List<ChipLevel> chipLevels;
   int? currentInterval;
@@ -57,6 +56,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
   String message = "Press start to begin timer.";
   TimerState _timerState = TimerState.initial;
   int currentBlindIndex = 0;
+
+  // Flag to control when timer end sound should play
+  bool _shouldPlayTimerEndSound = true;
 
   @override
   void dispose() {
@@ -88,7 +90,66 @@ class _TimerHomePageState extends State<TimerHomePage> {
     }
   }
 
-  void _startTimer() {
+  void _startTimer({bool playSounds = true}) {
+    // Set volume for audio playback
+    _audioPlayer.setVolume(widget.settingsService.getSettings().volume);
+
+    // Don't play timer end sound when we're starting
+    _shouldPlayTimerEndSound = false;
+
+    // Only play sounds if explicitly requested (not during auto-restart)
+    if (playSounds) {
+      if (kIsWeb) {
+        // For web, use JavaScript to create and play audio
+        // This is a more direct approach that works better with web browsers
+        js.context.callMethod('eval', [
+          '''
+          (function() {
+            // Always prepare the timer end sound
+            var endAudio = new Audio('assets/assets/audio/timer_end.mp3');
+            console.log('Prepping timer end sound from:', 'assets/assets/audio/timer_end.mp3');
+            endAudio.id = 'poker-timer-audio-end';
+            endAudio.volume = ${widget.settingsService.getSettings().volume};
+            document.body.appendChild(endAudio);
+            
+            // Play the game start sound
+            var startAudio = new Audio('assets/assets/audio/game_begun.mp3');
+            console.log('Playing game start sound from:', 'assets/assets/audio/game_begun.mp3');
+            startAudio.id = 'poker-timer-audio-start';
+            startAudio.volume = ${widget.settingsService.getSettings().volume};
+            document.body.appendChild(startAudio);
+            startAudio.play().catch(function(error) {
+              console.error('Game start audio error:', error);
+            });
+          })();
+          '''
+        ]);
+      } else {
+        // For mobile platforms, use AssetSource directly
+        _audioPlayer.stop();
+        _audioPlayer.play(AssetSource('audio/game_begun.mp3'));
+      }
+    } else if (kIsWeb) {
+      // Even when not playing sounds, still prepare the timer end sound for web
+      js.context.callMethod('eval', [
+        '''
+        (function() {
+          // Just prepare the timer end sound without playing anything
+          var endAudio = new Audio('assets/assets/audio/timer_end.mp3');
+          console.log('Silently prepping timer end sound');
+          endAudio.id = 'poker-timer-audio-end';
+          endAudio.volume = ${widget.settingsService.getSettings().volume};
+          document.body.appendChild(endAudio);
+        })();
+        '''
+      ]);
+    }
+
+    // Allow timer end sound to play after a delay
+    Future.delayed(Duration(seconds: 2), () {
+      _shouldPlayTimerEndSound = true;
+    });
+
     if (_timer != null) {
       _timer!.cancel();
       _timer = null;
@@ -137,18 +198,47 @@ class _TimerHomePageState extends State<TimerHomePage> {
       // Play sound when timer ends
       final settings = widget.settingsService.getSettings();
       try {
-        if (_audioInitialized) {
-          // If already initialized, just play
-          await _audioPlayer.play();
+        // Update volume in case it was changed in settings
+        await _audioPlayer.setVolume(settings.volume);
+
+        // Stop any current playback
+        await _audioPlayer.stop();
+
+        // For web, we need to use a different approach
+        if (kIsWeb && _shouldPlayTimerEndSound) {
+          try {
+            // Use JavaScript to create and play audio directly
+            // This is a more reliable approach for web browsers
+            js.context.callMethod('eval', [
+              '''
+              (function() {
+                // Look up the existing audio element by ID
+                var audio = document.getElementById('poker-timer-audio-end');
+                if (audio) {
+                  console.log('Playing timer end sound from existing element');
+                  audio.currentTime = 0; // Reset to beginning
+                  audio.volume = ${settings.volume};
+                  audio.play().catch(function(error) {
+                    console.error('Timer end audio error:', error);
+                  });
+                } else {
+                  console.error('Could not find timer end audio element');
+                }
+              })();
+              '''
+            ]);
+          } catch (e) {
+            print("Web audio playback error: $e");
+            // Try the audioplayers approach as fallback
+            try {
+              await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
+            } catch (fallbackError) {
+              print("Fallback audio playback error: $fallbackError");
+            }
+          }
         } else {
-          // If not initialized yet, open and play
-          await _audioPlayer.open(
-            Audio("assets/audio/timer_end.mp3"),
-            autoStart: true,
-            showNotification: false,
-            volume: settings.volume,
-          );
-          _audioInitialized = true;
+          // For mobile platforms
+          await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
         }
       } catch (e) {
         print("Error playing audio: $e");
@@ -158,7 +248,8 @@ class _TimerHomePageState extends State<TimerHomePage> {
         message = "$currentInterval minutes passed!";
         // Reset currentInterval to null to indicate we need a new interval
         currentInterval = null;
-        _startTimer();
+        // Start the timer again but don't play sounds
+        _startTimer(playSounds: false);
       });
     });
 
@@ -173,6 +264,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
   }
 
   void _stopTimer() {
+    // Stop the timer
     _timer?.cancel();
     _timer = null;
     _countdownTimer?.cancel();
@@ -202,21 +294,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
   void _initializeAudio() {
     try {
-      // Pre-load the audio file but don't start playing
-      _audioPlayer
-          .open(
-        Audio("assets/audio/timer_end.mp3"),
-        autoStart: false,
-        showNotification: false,
-        volume: widget.settingsService.getSettings().volume,
-      )
-          .then((_) {
-        setState(() {
-          _audioInitialized = true;
-        });
-      }).catchError((error) {
-        print("Error initializing audio: $error");
-      });
+      // Set the volume based on settings
+      final volume = widget.settingsService.getSettings().volume;
+      _audioPlayer.setVolume(volume);
     } catch (e) {
       print("Error initializing audio: $e");
     }
@@ -249,11 +329,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure audio is initialized on user interaction
-    if (!_audioInitialized) {
-      // We'll initialize audio on first user interaction with the app
-      // This is handled by _initializeAudio() called in initState
-    }
+    // Audio is initialized in initState
 
     final currentLevel = chipLevels[currentBlindIndex];
 
@@ -306,9 +382,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Row(
+                const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     SizedBox(
                         width: 120,
                         child: Text('Small Blind',
