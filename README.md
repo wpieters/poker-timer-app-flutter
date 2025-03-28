@@ -48,3 +48,7 @@ samples, guidance on mobile development, and a full API reference.
 ## Development
 
 This project started as a learning exercise during a Udemy Flutter course I was taking. It was later picked up again to further experiment with Windsurf, an agentic IDE that uses AI to assist with development tasks.
+
+## Acknowledgements
+
+- Voice clips used in the app were generated using [Motion Array](https://motionarray.com/)
