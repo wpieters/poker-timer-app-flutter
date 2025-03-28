@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:html' as html;
 
 import 'package:assets_audio_player/assets_audio_player.dart';
 import 'package:poker_timer/models/blind_settings.dart';
@@ -10,6 +9,9 @@ import 'package:poker_timer/pages/settings_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final settingsService = await SettingsService.create();
+  AssetsAudioPlayer.setupNotificationsOpenAction((notification) {
+    return true;
+  });
   runApp(TimerApp(settingsService: settingsService));
 }
 
@@ -38,15 +40,14 @@ class TimerHomePage extends StatefulWidget {
 }
 
 enum TimerState {
-  initial,   // Start enabled, Stop disabled
-  running,   // Start disabled, Stop enabled
-  paused,    // Resume enabled, Reset enabled
+  initial, // Start enabled, Stop disabled
+  running, // Start disabled, Stop enabled
+  paused, // Resume enabled, Reset enabled
 }
 
 class _TimerHomePageState extends State<TimerHomePage> {
-  final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer();
+  final AssetsAudioPlayer _audioPlayer = AssetsAudioPlayer.newPlayer();
   bool _audioInitialized = false;
-  html.AudioElement? _webAudioElement;
   late List<int> intervals;
   late List<ChipLevel> chipLevels;
   int? currentInterval;
@@ -76,13 +77,14 @@ class _TimerHomePageState extends State<TimerHomePage> {
         bigBlindColor: lastLevel.bigBlindColor,
         bigBlindMultiplier: lastLevel.bigBlindMultiplier * 2,
       );
-      
+
       // Add the new level to the list
       chipLevels.add(newLevel);
       currentBlindIndex++;
-      
+
       // Update the message to indicate blinds have doubled
-      message = "Blinds doubled! New big blind multiplier: ${newLevel.bigBlindMultiplier}";
+      message =
+          "Blinds doubled! New big blind multiplier: ${newLevel.bigBlindMultiplier}";
     }
   }
 
@@ -135,26 +137,18 @@ class _TimerHomePageState extends State<TimerHomePage> {
       // Play sound when timer ends
       final settings = widget.settingsService.getSettings();
       try {
-        // Try multiple approaches to play audio
-        
-        // 1. Try web audio element first (most reliable for web)
-        if (_webAudioElement != null) {
-          // Reset and play
-          _webAudioElement!.currentTime = 0;
-          _webAudioElement!.volume = settings.volume;
-          _webAudioElement!.play();
-        }
-        
-        // 2. Also try AssetsAudioPlayer as backup
         if (_audioInitialized) {
+          // If already initialized, just play
           await _audioPlayer.play();
         } else {
+          // If not initialized yet, open and play
           await _audioPlayer.open(
-            Audio.network("assets/audio/timer_end.mp3"),
+            Audio("assets/audio/timer_end.mp3"),
             autoStart: true,
             showNotification: false,
             volume: settings.volume,
           );
+          _audioInitialized = true;
         }
       } catch (e) {
         print("Error playing audio: $e");
@@ -170,7 +164,8 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
     setState(() {
       if (_timerState == TimerState.paused) {
-        message = "Timer resumed with ${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')} remaining.";
+        message =
+            "Timer resumed with ${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')} remaining.";
       } else {
         message = "Timer set for $currentInterval minutes.";
       }
@@ -204,24 +199,23 @@ class _TimerHomePageState extends State<TimerHomePage> {
     _loadSettings();
     _initializeAudio();
   }
-  
+
   void _initializeAudio() {
     try {
-      // Create a web audio element for direct browser API access
-      _webAudioElement = html.AudioElement('assets/audio/timer_end.mp3');
-      _webAudioElement?.setAttribute('preload', 'auto');
-      _webAudioElement?.volume = widget.settingsService.getSettings().volume;
-      
-      // Initialize the AssetsAudioPlayer with network audio for web compatibility
-      _audioPlayer.open(
-        Audio.network("assets/audio/timer_end.mp3"),
+      // Pre-load the audio file but don't start playing
+      _audioPlayer
+          .open(
+        Audio("assets/audio/timer_end.mp3"),
         autoStart: false,
         showNotification: false,
         volume: widget.settingsService.getSettings().volume,
-      ).then((_) {
+      )
+          .then((_) {
         setState(() {
           _audioInitialized = true;
         });
+      }).catchError((error) {
+        print("Error initializing audio: $error");
       });
     } catch (e) {
       print("Error initializing audio: $e");
@@ -256,19 +250,11 @@ class _TimerHomePageState extends State<TimerHomePage> {
   @override
   Widget build(BuildContext context) {
     // Ensure audio is initialized on user interaction
-    if (!_audioInitialized && _webAudioElement != null) {
-      // This forces a user interaction with audio
-      _webAudioElement!.play().then((_) {
-        _webAudioElement!.pause();
-        _webAudioElement!.currentTime = 0;
-        setState(() {
-          _audioInitialized = true;
-        });
-      }).catchError((error) {
-        print("Audio initialization error: $error");
-      });
+    if (!_audioInitialized) {
+      // We'll initialize audio on first user interaction with the app
+      // This is handled by _initializeAudio() called in initState
     }
-    
+
     final currentLevel = chipLevels[currentBlindIndex];
 
     return Scaffold(
@@ -298,17 +284,23 @@ class _TimerHomePageState extends State<TimerHomePage> {
                         height: 180,
                         width: 180,
                         child: CircularProgressIndicator(
-                          value: currentInterval != null ? _remainingSeconds / (currentInterval! * 60) : 0,
+                          value: currentInterval != null
+                              ? _remainingSeconds / (currentInterval! * 60)
+                              : 0,
                           strokeWidth: 12,
                           backgroundColor: Colors.grey[700],
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                          valueColor:
+                              const AlwaysStoppedAnimation<Color>(Colors.green),
                         ),
                       ),
                       Text(
                         currentInterval != null
                             ? '${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}'
                             : '--:--',
-                        style: const TextStyle(fontSize: 36, color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 36,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -317,8 +309,28 @@ class _TimerHomePageState extends State<TimerHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: const [
-                    SizedBox(width: 120, child: Text('Small Blind', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 2)]))),
-                    SizedBox(width: 120, child: Text('Big Blind', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 2)]))),
+                    SizedBox(
+                        width: 120,
+                        child: Text('Small Blind',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(color: Colors.black, blurRadius: 2)
+                                ]))),
+                    SizedBox(
+                        width: 120,
+                        child: Text('Big Blind',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(color: Colors.black, blurRadius: 2)
+                                ]))),
                   ],
                 ),
                 Row(
@@ -346,7 +358,10 @@ class _TimerHomePageState extends State<TimerHomePage> {
                             ),
                             child: Text(
                               "×${currentLevel.bigBlindMultiplier ~/ 2}",
-                              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                       ],
@@ -373,7 +388,10 @@ class _TimerHomePageState extends State<TimerHomePage> {
                             ),
                             child: Text(
                               "×${currentLevel.bigBlindMultiplier}",
-                              style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                       ],
@@ -391,13 +409,17 @@ class _TimerHomePageState extends State<TimerHomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: _timerState == TimerState.running ? null : _startTimer,
-                  child: Text(_timerState == TimerState.paused ? 'Resume' : 'Start'),
+                  onPressed:
+                      _timerState == TimerState.running ? null : _startTimer,
+                  child: Text(
+                      _timerState == TimerState.paused ? 'Resume' : 'Start'),
                 ),
                 const SizedBox(width: 20),
                 ElevatedButton(
-                  onPressed: _timerState == TimerState.initial ? null : _stopTimer,
-                  child: Text(_timerState == TimerState.paused ? 'Reset' : 'Stop'),
+                  onPressed:
+                      _timerState == TimerState.initial ? null : _stopTimer,
+                  child:
+                      Text(_timerState == TimerState.paused ? 'Reset' : 'Stop'),
                 ),
               ],
             )
