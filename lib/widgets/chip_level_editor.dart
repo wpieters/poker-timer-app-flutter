@@ -100,8 +100,12 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
               if (oldIndex < newIndex) {
                 newIndex -= 1;
               }
-              final item = _chipLevels.removeAt(oldIndex);
-              _chipLevels.insert(newIndex, item);
+              // Create a new list and manipulate it to avoid removeAt which can cause issues in web
+              final List<ChipLevel> newList = List.from(_chipLevels);
+              final item = newList[oldIndex];
+              newList.removeAt(oldIndex);
+              newList.insert(newIndex, item);
+              _chipLevels = newList;
             });
             widget.onChipLevelsChanged(_chipLevels);
           },
@@ -168,7 +172,12 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () {
                           setState(() {
-                            _chipLevels.removeAt(index);
+                            // Create a new list without the item at index to avoid removeAt
+                            final indexToRemove = index; // Store the index to remove
+                            _chipLevels = List.from(_chipLevels.asMap().entries
+                              .where((entry) => entry.key != indexToRemove)
+                              .map((entry) => entry.value)
+                              .toList());
                           });
                           widget.onChipLevelsChanged(_chipLevels);
                         },

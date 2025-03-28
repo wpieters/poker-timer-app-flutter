@@ -56,6 +56,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
   String message = "Press start to begin timer.";
   TimerState _timerState = TimerState.initial;
   int currentBlindIndex = 0;
+  int currentIntervalIndex = 0; // Track current position in intervals list
 
   // Flag to control when timer end sound should play
   bool _shouldPlayTimerEndSound = true;
@@ -167,16 +168,19 @@ class _TimerHomePageState extends State<TimerHomePage> {
       // We're resuming, keep the current interval and remaining seconds
     } else if (currentInterval == null) {
       // Starting fresh, get the first interval
+      currentIntervalIndex = 0; // Reset to first interval
       if (intervals.isNotEmpty) {
-        currentInterval = intervals.removeAt(0);
+        currentInterval = intervals[currentIntervalIndex];
+        currentIntervalIndex++; // Move to next interval for next time
       } else {
         currentInterval = 10;
       }
       _remainingSeconds = currentInterval! * 60;
     } else {
       // Timer expired, move to next interval
-      if (intervals.isNotEmpty) {
-        currentInterval = intervals.removeAt(0);
+      if (currentIntervalIndex < intervals.length) {
+        currentInterval = intervals[currentIntervalIndex];
+        currentIntervalIndex++; // Move to next interval for next time
         _remainingSeconds = currentInterval! * 60;
       } else {
         // No more intervals, stay at current interval (already handled by _updateBlinds)
@@ -290,6 +294,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
     super.initState();
     _loadSettings();
     _initializeAudio();
+    currentIntervalIndex = 0; // Initialize interval index
   }
 
   void _initializeAudio() {
