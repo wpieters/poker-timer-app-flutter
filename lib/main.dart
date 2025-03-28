@@ -151,6 +151,9 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _shouldPlayTimerEndSound = true;
     });
 
+    // Store the current state before changing it
+    final wasInPausedState = _timerState == TimerState.paused;
+    
     if (_timer != null) {
       _timer!.cancel();
       _timer = null;
@@ -164,8 +167,10 @@ class _TimerHomePageState extends State<TimerHomePage> {
     });
 
     // Handle different scenarios for setting the current interval
-    if (_timerState == TimerState.paused) {
+    if (wasInPausedState) {
       // We're resuming, keep the current interval and remaining seconds
+      // No need to change currentInterval or _remainingSeconds
+      // Just continue with the existing values
     } else if (currentInterval == null) {
       // Starting fresh, get the first interval
       currentIntervalIndex = 0; // Reset to first interval
