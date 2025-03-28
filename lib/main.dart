@@ -21,7 +21,7 @@ class TimerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Interval Timer',
+      title: 'Poker Timer',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -153,7 +153,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
 
     // Store the current state before changing it
     final wasInPausedState = _timerState == TimerState.paused;
-    
+
     if (_timer != null) {
       _timer!.cancel();
       _timer = null;
