@@ -45,7 +45,7 @@ class BlindSettings {
   final List<int> intervals;
   final List<ChipLevel> chipLevels;
   final double volume;
-  
+
   const BlindSettings({
     required this.intervals,
     required this.chipLevels,
@@ -53,38 +53,33 @@ class BlindSettings {
   });
 
   factory BlindSettings.defaultSettings() {
-    return BlindSettings(
-      intervals: const [45, 45, 30, 30, 15, 15],
+    return const BlindSettings(
+      intervals: [45, 45, 30, 30, 15, 15, 5],
       chipLevels: [
-        const ChipLevel(
+        ChipLevel(
           smallBlindColor: Colors.blue,
           bigBlindColor: Colors.white,
           bigBlindMultiplier: 1,
         ),
-        const ChipLevel(
+        ChipLevel(
           smallBlindColor: Colors.white,
           bigBlindColor: Colors.black,
           bigBlindMultiplier: 1,
         ),
-        const ChipLevel(
+        ChipLevel(
           smallBlindColor: Colors.black,
           bigBlindColor: Colors.red,
           bigBlindMultiplier: 1,
         ),
-        const ChipLevel(
+        ChipLevel(
           smallBlindColor: Colors.red,
           bigBlindColor: Colors.green,
           bigBlindMultiplier: 1,
         ),
-        const ChipLevel(
+        ChipLevel(
           smallBlindColor: Colors.green,
           bigBlindColor: Colors.green,
           bigBlindMultiplier: 2,
-        ),
-        const ChipLevel(
-          smallBlindColor: Colors.green,
-          bigBlindColor: Colors.green,
-          bigBlindMultiplier: 4,
         ),
       ],
     );
