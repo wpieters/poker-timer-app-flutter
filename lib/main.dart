@@ -92,185 +92,184 @@ class _TimerHomePageState extends State<TimerHomePage> {
   }
 
   void _startTimer({bool playSounds = true}) {
-    // Set volume for audio playback
-    _audioPlayer.setVolume(widget.settingsService.getSettings().volume);
+  // Set volume for audio playback
+  _audioPlayer.setVolume(widget.settingsService.getSettings().volume);
 
-    // Don't play timer end sound when we're starting
-    _shouldPlayTimerEndSound = false;
+  // Don't play timer end sound when we're starting
+  _shouldPlayTimerEndSound = false;
 
-    // Only play sounds if explicitly requested (not during auto-restart)
-    if (playSounds) {
-      if (kIsWeb) {
-        // For web, use JavaScript to create and play audio
-        // This is a more direct approach that works better with web browsers
-        js.context.callMethod('eval', [
-          '''
-          (function() {
-            // Always prepare the timer end sound
-            var endAudio = new Audio('assets/assets/audio/timer_end.mp3');
-            console.log('Prepping timer end sound from:', 'assets/assets/audio/timer_end.mp3');
-            endAudio.id = 'poker-timer-audio-end';
-            endAudio.volume = ${widget.settingsService.getSettings().volume};
-            document.body.appendChild(endAudio);
-            
-            // Play the game start sound
-            var startAudio = new Audio('assets/assets/audio/game_begun.mp3');
-            console.log('Playing game start sound from:', 'assets/assets/audio/game_begun.mp3');
-            startAudio.id = 'poker-timer-audio-start';
-            startAudio.volume = ${widget.settingsService.getSettings().volume};
-            document.body.appendChild(startAudio);
-            startAudio.play().catch(function(error) {
-              console.error('Game start audio error:', error);
-            });
-          })();
-          '''
-        ]);
-      } else {
-        // For mobile platforms, use AssetSource directly
-        _audioPlayer.stop();
-        _audioPlayer.play(AssetSource('audio/game_begun.mp3'));
-      }
-    } else if (kIsWeb) {
-      // Even when not playing sounds, still prepare the timer end sound for web
+  // Only play sounds if explicitly requested (not during auto-restart)
+  if (playSounds) {
+    if (kIsWeb) {
+      // For web, use JavaScript to create and play audio
+      // This is a more direct approach that works better with web browsers
       js.context.callMethod('eval', [
         '''
         (function() {
-          // Just prepare the timer end sound without playing anything
+          // Always prepare the timer end sound
           var endAudio = new Audio('assets/assets/audio/timer_end.mp3');
-          console.log('Silently prepping timer end sound');
+          console.log('Prepping timer end sound from:', 'assets/assets/audio/timer_end.mp3');
           endAudio.id = 'poker-timer-audio-end';
           endAudio.volume = ${widget.settingsService.getSettings().volume};
           document.body.appendChild(endAudio);
+          
+          // Play the game start sound
+          var startAudio = new Audio('assets/assets/audio/game_begun.mp3');
+          console.log('Playing game start sound from:', 'assets/assets/audio/game_begun.mp3');
+          startAudio.id = 'poker-timer-audio-start';
+          startAudio.volume = ${widget.settingsService.getSettings().volume};
+          document.body.appendChild(startAudio);
+          startAudio.play().catch(function(error) {
+            console.error('Game start audio error:', error);
+          });
         })();
         '''
       ]);
+    } else {
+      // For mobile platforms, use AssetSource directly
+      _audioPlayer.stop();
+      _audioPlayer.play(AssetSource('audio/game_begun.mp3'));
     }
+  } else if (kIsWeb) {
+    // Even when not playing sounds, still prepare the timer end sound for web
+    js.context.callMethod('eval', [
+      '''
+      (function() {
+        // Just prepare the timer end sound without playing anything
+        var endAudio = new Audio('assets/assets/audio/timer_end.mp3');
+        console.log('Silently prepping timer end sound');
+        endAudio.id = 'poker-timer-audio-end';
+        endAudio.volume = ${widget.settingsService.getSettings().volume};
+        document.body.appendChild(endAudio);
+      })();
+      '''
+    ]);
+  }
 
-    // Allow timer end sound to play after a delay
-    Future.delayed(Duration(seconds: 2), () {
-      _shouldPlayTimerEndSound = true;
-    });
+  // Allow timer end sound to play after a delay
+  Future.delayed(Duration(seconds: 2), () {
+    _shouldPlayTimerEndSound = true;
+  });
 
-    // Store the current state before changing it
-    final wasInPausedState = _timerState == TimerState.paused;
+  // Store the current state before changing it
+  final wasInPausedState = _timerState == TimerState.paused;
 
-    if (_timer != null) {
-      _timer!.cancel();
-      _timer = null;
-    }
-    if (_countdownTimer != null) {
-      _countdownTimer!.cancel();
-      _countdownTimer = null;
-    }
-    setState(() {
-      _timerState = TimerState.running;
-    });
+  if (_timer != null) {
+    _timer!.cancel();
+    _timer = null;
+  }
+  if (_countdownTimer != null) {
+    _countdownTimer!.cancel();
+    _countdownTimer = null;
+  }
+  setState(() {
+    _timerState = TimerState.running;
+  });
 
-    // Handle different scenarios for setting the current interval
-    if (wasInPausedState) {
-      // We're resuming, keep the current interval and remaining seconds
-      // No need to change currentInterval or _remainingSeconds
-      // Just continue with the existing values
-    } else if (currentInterval == null) {
-      // Starting fresh, get the first interval
-      currentIntervalIndex = 0; // Reset to first interval
-      if (intervals.isNotEmpty) {
-        currentInterval = intervals[currentIntervalIndex];
-        currentIntervalIndex++; // Move to next interval for next time
-      } else {
-        currentInterval = 10;
-      }
+  // Handle different scenarios for setting the current interval
+  if (wasInPausedState) {
+    // We're resuming, keep the current interval and remaining seconds
+    // No need to change currentInterval or _remainingSeconds
+    // Just continue with the existing values
+  } else if (currentInterval == null) {
+    // Starting fresh, get the first interval
+    if (intervals.isNotEmpty && currentIntervalIndex < intervals.length) {
+      currentInterval = intervals[currentIntervalIndex];
       _remainingSeconds = currentInterval! * 60;
     } else {
-      // Timer expired, move to next interval
-      if (currentIntervalIndex < intervals.length) {
-        currentInterval = intervals[currentIntervalIndex];
-        currentIntervalIndex++; // Move to next interval for next time
-        _remainingSeconds = currentInterval! * 60;
-      } else {
-        // No more intervals, stay at current interval (already handled by _updateBlinds)
-        _remainingSeconds = currentInterval! * 60;
-      }
+      currentInterval = 10;
+      _remainingSeconds = currentInterval! * 60;
     }
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        }
-      });
-    });
-
-    // Calculate the remaining duration based on _remainingSeconds
-    final durationInSeconds = _remainingSeconds;
-    _timer = Timer(Duration(seconds: durationInSeconds), () async {
-      // Play sound when timer ends
-      final settings = widget.settingsService.getSettings();
-      try {
-        // Update volume in case it was changed in settings
-        await _audioPlayer.setVolume(settings.volume);
-
-        // Stop any current playback
-        await _audioPlayer.stop();
-
-        // For web, we need to use a different approach
-        if (kIsWeb && _shouldPlayTimerEndSound) {
-          try {
-            // Use JavaScript to create and play audio directly
-            // This is a more reliable approach for web browsers
-            js.context.callMethod('eval', [
-              '''
-              (function() {
-                // Look up the existing audio element by ID
-                var audio = document.getElementById('poker-timer-audio-end');
-                if (audio) {
-                  console.log('Playing timer end sound from existing element');
-                  audio.currentTime = 0; // Reset to beginning
-                  audio.volume = ${settings.volume};
-                  audio.play().catch(function(error) {
-                    console.error('Timer end audio error:', error);
-                  });
-                } else {
-                  console.error('Could not find timer end audio element');
-                }
-              })();
-              '''
-            ]);
-          } catch (e) {
-            print("Web audio playback error: $e");
-            // Try the audioplayers approach as fallback
-            try {
-              await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
-            } catch (fallbackError) {
-              print("Fallback audio playback error: $fallbackError");
-            }
-          }
-        } else {
-          // For mobile platforms
-          await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
-        }
-      } catch (e) {
-        print("Error playing audio: $e");
-      }
-      setState(() {
-        _updateBlinds();
-        message = "$currentInterval minutes passed!";
-        // Reset currentInterval to null to indicate we need a new interval
-        currentInterval = null;
-        // Start the timer again but don't play sounds
-        _startTimer(playSounds: false);
-      });
-    });
-
-    setState(() {
-      if (_timerState == TimerState.paused) {
-        message =
-            "Timer resumed with ${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')} remaining.";
-      } else {
-        message = "Timer set for $currentInterval minutes.";
-      }
-    });
+  } else {
+    // Timer expired, move to next interval if not at the end
+    if (currentIntervalIndex < intervals.length - 1) {
+      currentIntervalIndex++; // Increment to the next interval
+      currentInterval = intervals[currentIntervalIndex];
+      _remainingSeconds = currentInterval! * 60;
+    } else {
+      // We've reached the last interval, stay on it and reset the time
+      currentInterval = intervals[currentIntervalIndex];
+      _remainingSeconds = currentInterval! * 60;
+    }
   }
+
+  _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    setState(() {
+      if (_remainingSeconds > 0) {
+        _remainingSeconds--;
+      }
+    });
+  });
+
+  // Calculate the remaining duration based on _remainingSeconds
+  final durationInSeconds = _remainingSeconds;
+  _timer = Timer(Duration(seconds: durationInSeconds), () async {
+    // Play sound when timer ends
+    final settings = widget.settingsService.getSettings();
+    try {
+      // Update volume in case it was changed in settings
+      await _audioPlayer.setVolume(settings.volume);
+
+      // Stop any current playback
+      await _audioPlayer.stop();
+
+      // For web, we need to use a different approach
+      if (kIsWeb && _shouldPlayTimerEndSound) {
+        try {
+          // Use JavaScript to create and play audio directly
+          // This is a more reliable approach for web browsers
+          js.context.callMethod('eval', [
+            '''
+            (function() {
+              // Look up the existing audio element by ID
+              var audio = document.getElementById('poker-timer-audio-end');
+              if (audio) {
+                console.log('Playing timer end sound from existing element');
+                audio.currentTime = 0; // Reset to beginning
+                audio.volume = ${settings.volume};
+                audio.play().catch(function(error) {
+                  console.error('Timer end audio error:', error);
+                });
+              } else {
+                console.error('Could not find timer end audio element');
+              }
+            })();
+            '''
+          ]);
+        } catch (e) {
+          print("Web audio playback error: $e");
+          // Try the audioplayers approach as fallback
+          try {
+            await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
+          } catch (fallbackError) {
+            print("Fallback audio playback error: $fallbackError");
+          }
+        }
+      } else {
+        // For mobile platforms
+        await _audioPlayer.play(AssetSource('audio/timer_end.mp3'));
+      }
+    } catch (e) {
+      print("Error playing audio: $e");
+    }
+    setState(() {
+      _updateBlinds();
+      message = "$currentInterval minutes passed!";
+      // Don't reset currentInterval to null anymore
+      // Instead, handle the timer expiration here
+      _startTimer(playSounds: false);
+    });
+  });
+
+  setState(() {
+    if (_timerState == TimerState.paused) {
+      message =
+          "Timer resumed with ${(_remainingSeconds / 60).floor()}:${(_remainingSeconds % 60).toString().padLeft(2, '0')} remaining.";
+    } else {
+      message = "Timer set for $currentInterval minutes.";
+    }
+  });
+}
 
   void _stopTimer() {
     // Stop the timer
