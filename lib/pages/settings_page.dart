@@ -189,10 +189,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 32),
             const Divider(),
-            const Text(
-              'Chip Colors',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
             const SizedBox(height: 16),
             ChipLevelEditor(
               chipLevels: _chipLevels,

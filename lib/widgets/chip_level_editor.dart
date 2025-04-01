@@ -41,7 +41,17 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
               onColorChanged: (color) {
                 pickerColor = color;
               },
-              pickerAreaHeightPercent: 0.8,
+              pickerAreaHeightPercent: 0.7,
+              displayThumbColor: true,
+              enableAlpha: false,
+              hexInputBar: true,
+              portraitOnly: true,
+              colorPickerWidth: 300,
+              paletteType: PaletteType.hsvWithHue,
+              labelTypes: const [
+                ColorLabelType.rgb,
+                ColorLabelType.hex,
+              ],
             ),
           ),
           actions: [
