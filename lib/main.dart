@@ -287,7 +287,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
         message = "Timer reset.";
         intervals = widget.settingsService.getSettings().intervals;
         currentBlindIndex = 0;
-        currentInterval = null;
+        currentInterval = 0;
         _remainingSeconds = 0;
       }
     });
