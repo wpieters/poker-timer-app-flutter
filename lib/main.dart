@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'services/wake_lock_service.dart';
 import 'services/web_timer_service.dart';
+import 'services/lifecycle_service.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:poker_timer/models/blind_settings.dart';
@@ -61,9 +62,10 @@ class _TimerHomePageState extends State<TimerHomePage> {
   int currentBlindIndex = 0;
   int currentIntervalIndex = 0; // Track current position in intervals list
 
-  // Web-specific services
+  // Services
   final WakeLockService _wakeLockService = WakeLockService();
   final WebTimerService _webTimerService = WebTimerService();
+  final LifecycleService _lifecycleService = LifecycleService();
 
   // Flag to control when timer end sound should play
   bool _shouldPlayTimerEndSound = true;
@@ -77,6 +79,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
       _wakeLockService.releaseWakeLock();
       _webTimerService.dispose();
     }
+    _lifecycleService.dispose();
     super.dispose();
   }
 
@@ -273,11 +276,15 @@ class _TimerHomePageState extends State<TimerHomePage> {
         print("Error playing audio: $e");
       }
       setState(() {
-        // _updateBlinds(); // should be handled by timer _onTimerComplete
-        message = "$currentInterval minutes passed!";
-        // Don't reset currentInterval to null anymore
-        // Instead, handle the timer expiration here
-        _startTimer(playSounds: false);
+        // Only handle timer completion here for non-web platforms
+        // For web, this is handled by the web timer service's onComplete callback
+        if (!kIsWeb) {
+          _updateBlinds();
+          message = "$currentInterval minutes passed!";
+          _startTimer(playSounds: false);
+        } else {
+          message = "$currentInterval minutes passed!";
+        }
       });
     });
 
@@ -329,10 +336,38 @@ class _TimerHomePageState extends State<TimerHomePage> {
     super.initState();
     _loadSettings();
     _initializeAudio();
+    _initializeLifecycleService();
     if (kIsWeb) {
       _initializeWebTimer();
     }
     currentIntervalIndex = 0; // Initialize interval index
+  }
+  
+  void _initializeLifecycleService() {
+    _lifecycleService.initialize();
+    _lifecycleService.onResumeWithElapsed = _handleAppResume;
+  }
+  
+  void _handleAppResume(Duration elapsedDuration) {
+    if (_timerState != TimerState.running) return;
+    
+    if (kIsWeb) {
+      // For web, use the web timer service to adjust the time
+      _webTimerService.adjustTimerForElapsedDuration(elapsedDuration);
+    } else {
+      // For mobile, manually adjust the remaining seconds
+      setState(() {
+        final elapsedSeconds = elapsedDuration.inSeconds;
+        if (_remainingSeconds > elapsedSeconds) {
+          _remainingSeconds -= elapsedSeconds;
+        } else {
+          // Timer would have completed while in background
+          _remainingSeconds = 0;
+          // Use a flag to prevent double-triggering
+          _onTimerComplete();
+        }
+      });
+    }
   }
 
   void _initializeWebTimer() {
