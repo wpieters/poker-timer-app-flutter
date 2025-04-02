@@ -3,6 +3,9 @@ import 'dart:async';
 import 'dart:js' as js;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'services/wake_lock_service.dart';
+import 'services/web_timer_service.dart';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:poker_timer/models/blind_settings.dart';
 import 'package:poker_timer/services/settings_service.dart';
@@ -58,13 +61,22 @@ class _TimerHomePageState extends State<TimerHomePage> {
   int currentBlindIndex = 0;
   int currentIntervalIndex = 0; // Track current position in intervals list
 
+  // Web-specific services
+  final WakeLockService _wakeLockService = WakeLockService();
+  final WebTimerService _webTimerService = WebTimerService();
+
   // Flag to control when timer end sound should play
   bool _shouldPlayTimerEndSound = true;
 
   @override
   void dispose() {
     _timer?.cancel();
+    _countdownTimer?.cancel();
     _audioPlayer.dispose();
+    if (kIsWeb) {
+      _wakeLockService.releaseWakeLock();
+      _webTimerService.dispose();
+    }
     super.dispose();
   }
 
@@ -147,7 +159,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
     }
 
     // Allow timer end sound to play after a delay
-    Future.delayed(Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () {
       _shouldPlayTimerEndSound = true;
     });
 
@@ -193,13 +205,21 @@ class _TimerHomePageState extends State<TimerHomePage> {
       }
     }
 
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_remainingSeconds > 0) {
-          _remainingSeconds--;
-        }
+    if (kIsWeb) {
+      _wakeLockService.requestWakeLock();
+      _webTimerService.startTimer(_remainingSeconds);
+    } else {
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            // since we are already checking kIsWeb, this is handled by web timer
+            // _onTimerComplete();
+          }
+        });
       });
-    });
+    }
 
     // Calculate the remaining duration based on _remainingSeconds
     final durationInSeconds = _remainingSeconds;
@@ -253,7 +273,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
         print("Error playing audio: $e");
       }
       setState(() {
-        _updateBlinds();
+        // _updateBlinds(); // should be handled by timer _onTimerComplete
         message = "$currentInterval minutes passed!";
         // Don't reset currentInterval to null anymore
         // Instead, handle the timer expiration here
@@ -277,6 +297,16 @@ class _TimerHomePageState extends State<TimerHomePage> {
     _timer = null;
     _countdownTimer?.cancel();
     _countdownTimer = null;
+
+    if (kIsWeb) {
+      _wakeLockService.releaseWakeLock();
+      if (_timerState == TimerState.paused) {
+        _webTimerService.stopTimer();
+      } else {
+        _webTimerService.pauseTimer();
+      }
+    }
+
     setState(() {
       if (_timerState == TimerState.running) {
         _timerState = TimerState.paused;
@@ -299,7 +329,36 @@ class _TimerHomePageState extends State<TimerHomePage> {
     super.initState();
     _loadSettings();
     _initializeAudio();
+    if (kIsWeb) {
+      _initializeWebTimer();
+    }
     currentIntervalIndex = 0; // Initialize interval index
+  }
+
+  void _initializeWebTimer() {
+    _webTimerService.initialize();
+    _webTimerService.onTick = (seconds) {
+      if (mounted) {
+        setState(() {
+          _remainingSeconds = seconds;
+        });
+      }
+    };
+    _webTimerService.onComplete = () {
+      if (mounted) {
+        _onTimerComplete();
+      }
+    };
+  }
+
+  void _onTimerComplete() {
+    _updateBlinds();
+    if (currentInterval != null) {
+      setState(() {
+        message = "Interval $currentInterval minutes completed!";
+      });
+    }
+    _startTimer(playSounds: false);
   }
 
   void _initializeAudio() {
@@ -495,8 +554,10 @@ class _TimerHomePageState extends State<TimerHomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed:
-                      _timerState == TimerState.running ? null : () => _startTimer(playSounds: _timerState != TimerState.paused),
+                  onPressed: _timerState == TimerState.running
+                      ? null
+                      : () => _startTimer(
+                          playSounds: _timerState != TimerState.paused),
                   child: Text(
                       _timerState == TimerState.paused ? 'Resume' : 'Start'),
                 ),
