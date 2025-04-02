@@ -496,7 +496,7 @@ class _TimerHomePageState extends State<TimerHomePage> {
               children: [
                 ElevatedButton(
                   onPressed:
-                      _timerState == TimerState.running ? null : _startTimer,
+                      _timerState == TimerState.running ? null : () => _startTimer(playSounds: _timerState != TimerState.paused),
                   child: Text(
                       _timerState == TimerState.paused ? 'Resume' : 'Start'),
                 ),
