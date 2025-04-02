@@ -205,6 +205,42 @@ class _SettingsPageState extends State<SettingsPage> {
             Row(
               children: [
                 Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        final defaultSettings = BlindSettings.defaultSettings();
+                        _settings = defaultSettings;
+                        _chipLevels = List.from(defaultSettings.chipLevels);
+                        _volume = defaultSettings.volume;
+                        
+                        // Update controllers with default intervals
+                        for (var i = 0; i < _controllers.length; i++) {
+                          _controllers[i].dispose();
+                        }
+                        _controllers.clear();
+                        for (final interval in defaultSettings.intervals) {
+                          final controller = TextEditingController(text: interval.toString());
+                          controller.addListener(_onControllerChanged);
+                          _controllers.add(controller);
+                        }
+                        
+                        _hasUnsavedChanges = true;
+                      });
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Settings reset to defaults')),
+                      );
+                    },
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Reset to Defaults'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
