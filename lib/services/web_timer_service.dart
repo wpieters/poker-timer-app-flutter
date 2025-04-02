@@ -6,6 +6,7 @@ class WebTimerService {
   dynamic _worker;
   Function(int)? onTick;
   Function()? onComplete;
+  int _currentSeconds = 0;
   
   /// Initialize the web worker for timing
   void initialize() {
@@ -47,6 +48,7 @@ class WebTimerService {
   void startTimer(int seconds) {
     if (!kIsWeb || _worker == null) return;
     
+    _currentSeconds = seconds;
     _worker.callMethod('postMessage', [js.JsObject.jsify({
       'type': 'start',
       'data': {'seconds': seconds},
@@ -71,6 +73,33 @@ class WebTimerService {
     })]);
   }
   
+  /// Adjust the timer by the given duration (typically after app resume)
+  void adjustTimerForElapsedDuration(Duration elapsed) {
+    if (!kIsWeb || _worker == null) return;
+    
+    // Calculate new remaining seconds
+    final elapsedSeconds = elapsed.inSeconds;
+    if (elapsedSeconds <= 0) return;
+    
+    // Adjust the current seconds
+    _currentSeconds = _currentSeconds > elapsedSeconds ? 
+        _currentSeconds - elapsedSeconds : 0;
+    
+    // Update the timer in the worker
+    _worker.callMethod('postMessage', [js.JsObject.jsify({
+      'type': 'adjust',
+      'data': {'seconds': _currentSeconds},
+    })]);
+    
+    // If timer would have completed during background, trigger completion
+    if (_currentSeconds <= 0) {
+      onComplete?.call();
+    } else {
+      // Otherwise update the UI with new time
+      onTick?.call(_currentSeconds);
+    }
+  }
+
   /// Dispose of the web worker
   void dispose() {
     if (!kIsWeb || _worker == null) return;
