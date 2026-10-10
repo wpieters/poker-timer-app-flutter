@@ -5,8 +5,7 @@ frontend:
       commands:
         - nvm install 22
         - mkdir -p .ci
-        - curl --fail --location --retry 3 https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.7-stable.tar.xz --output .ci/flutter.tar.xz
-        - tar -xf .ci/flutter.tar.xz -C .ci
+        - git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git .ci/flutter
         - export FLUTTER_BIN="$PWD/.ci/flutter/bin/flutter"
         - export PATH="$PWD/.ci/flutter/bin:$PATH"
         - export PUB_CACHE="$PWD/.pub-cache"
