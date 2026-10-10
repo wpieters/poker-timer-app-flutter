@@ -69,17 +69,17 @@ class BlindSettings {
         ),
         ChipLevel(
           smallBlindColor: Colors.black,
-          bigBlindColor: Colors.red,
-          bigBlindMultiplier: 1,
-        ),
-        ChipLevel(
-          smallBlindColor: Colors.red,
           bigBlindColor: Colors.green,
           bigBlindMultiplier: 1,
         ),
         ChipLevel(
           smallBlindColor: Colors.green,
-          bigBlindColor: Colors.green,
+          bigBlindColor: Colors.red,
+          bigBlindMultiplier: 1,
+        ),
+        ChipLevel(
+          smallBlindColor: Colors.red,
+          bigBlindColor: Colors.red,
           bigBlindMultiplier: 2,
         ),
       ],
