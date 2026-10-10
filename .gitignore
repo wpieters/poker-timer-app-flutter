@@ -4,6 +4,7 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
 *.log
 *.pyc
 *.swp
@@ -57,6 +58,7 @@ analysis_benchmark.json
 .packages
 .pub-preload-cache/
 .pub-cache/
+/.ci/
 .pub/
 build/
 flutter_*.png

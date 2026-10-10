@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/blind_settings.dart';
 import '../services/settings_service.dart';
 import '../widgets/chip_level_editor.dart';
@@ -22,6 +23,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _controllers = [];
   bool _hasUnsavedChanges = false;
+  bool _allowPop = false;
+  bool _closing = false;
   late List<ChipLevel> _chipLevels;
   late double _volume;
 
@@ -65,19 +68,19 @@ class _SettingsPageState extends State<SettingsPage> {
       final newIntervals = _controllers
           .map((controller) => int.parse(controller.text))
           .toList();
-      
+
       final newSettings = _settings.copyWith(
         intervals: newIntervals,
         chipLevels: _chipLevels,
         volume: _volume,
       );
       await widget.settingsService.saveSettings(newSettings);
+      if (!mounted) return true;
       widget.onSettingsChanged(newSettings);
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Settings saved')));
       }
       setState(() {
         _hasUnsavedChanges = false;
@@ -113,153 +116,175 @@ class _SettingsPageState extends State<SettingsPage> {
     return _saveSettings();
   }
 
+  Future<void> _close() async {
+    if (_closing) return;
+    _closing = true;
+    final shouldPop = await _onWillPop();
+    if (!mounted) return;
+    _closing = false;
+    if (!shouldPop) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope<void>(
+      canPop: _allowPop || !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _close();
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Settings'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              final shouldPop = await _onWillPop();
-              if (shouldPop && mounted) {
-                Navigator.pop(context);
-              }
-            },
+            onPressed: _close,
           ),
         ),
         body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text(
-              'Blind Intervals (minutes)',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ..._buildIntervalFields(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      final controller = TextEditingController(text: '15');
-                      controller.addListener(_onControllerChanged);
-                      setState(() {
-                        _controllers.add(controller);
-                        _hasUnsavedChanges = true;
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Interval'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Sound Volume',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.volume_off),
-                Expanded(
-                  child: Slider(
-                    value: _volume,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 10,
-                    label: '${(_volume * 100).round()}%',
-                    onChanged: (value) {
-                      setState(() {
-                        _volume = value;
-                        _hasUnsavedChanges = true;
-                      });
-                    },
-                  ),
-                ),
-                const Icon(Icons.volume_up),
-              ],
-            ),
-            const SizedBox(height: 32),
-            const Divider(),
-            const SizedBox(height: 16),
-            ChipLevelEditor(
-              chipLevels: _chipLevels,
-              onChipLevelsChanged: (levels) {
-                setState(() {
-                  _chipLevels = levels;
-                  _hasUnsavedChanges = true;
-                });
-              },
-            ),
-            const SizedBox(height: 32),
-            const Divider(),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        final defaultSettings = BlindSettings.defaultSettings();
-                        _settings = defaultSettings;
-                        _chipLevels = List.from(defaultSettings.chipLevels);
-                        _volume = defaultSettings.volume;
-                        
-                        // Update controllers with default intervals
-                        for (var i = 0; i < _controllers.length; i++) {
-                          _controllers[i].dispose();
-                        }
-                        _controllers.clear();
-                        for (final interval in defaultSettings.intervals) {
-                          final controller = TextEditingController(text: interval.toString());
-                          controller.addListener(_onControllerChanged);
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text(
+                'Blind Intervals (minutes)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'Interval and chip changes apply to the next tournament.',
+              ),
+              const SizedBox(height: 16),
+              ..._buildIntervalFields(),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final controller = TextEditingController(text: '15');
+                        controller.addListener(_onControllerChanged);
+                        setState(() {
                           _controllers.add(controller);
-                        }
-                        
-                        _hasUnsavedChanges = true;
-                      });
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Settings reset to defaults')),
-                      );
-                    },
-                    icon: const Icon(Icons.restore),
-                    label: const Text('Reset to Defaults'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Interval'),
                     ),
-                    onPressed: () async {
-                      if (await _saveSettings()) {
-                        if (mounted) Navigator.pop(context);
-                      }
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save and Close'),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Sound Volume',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.volume_off),
+                  Expanded(
+                    child: Slider(
+                      value: _volume,
+                      min: 0.0,
+                      max: 1.0,
+                      divisions: 10,
+                      label: '${(_volume * 100).round()}%',
+                      onChanged: (value) {
+                        setState(() {
+                          _volume = value;
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
+                  ),
+                  const Icon(Icons.volume_up),
+                ],
+              ),
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              ChipLevelEditor(
+                chipLevels: _chipLevels,
+                onChipLevelsChanged: (levels) {
+                  setState(() {
+                    _chipLevels = levels;
+                    _hasUnsavedChanges = true;
+                  });
+                },
+              ),
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          final defaultSettings =
+                              BlindSettings.defaultSettings();
+                          _settings = defaultSettings;
+                          _chipLevels = List.from(defaultSettings.chipLevels);
+                          _volume = defaultSettings.volume;
+
+                          // Update controllers with default intervals
+                          for (var i = 0; i < _controllers.length; i++) {
+                            _controllers[i].dispose();
+                          }
+                          _controllers.clear();
+                          for (final interval in defaultSettings.intervals) {
+                            final controller = TextEditingController(
+                              text: interval.toString(),
+                            );
+                            controller.addListener(_onControllerChanged);
+                            _controllers.add(controller);
+                          }
+
+                          _hasUnsavedChanges = true;
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Settings reset to defaults'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.restore),
+                      label: const Text('Reset to Defaults'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () async {
+                        if (await _saveSettings() && context.mounted) {
+                          setState(() => _allowPop = true);
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (context.mounted) Navigator.pop(context);
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save and Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -297,11 +322,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   // Dispose the controller we're removing
                   final controllerToRemove = _controllers[index];
                   controllerToRemove.dispose();
-                  
+
                   setState(() {
                     // Since _controllers is final, we need to modify its contents
                     // rather than replacing the entire list
-                    
+
                     // Create a temporary list without the controller at the specified index
                     final tempList = <TextEditingController>[];
                     for (int i = 0; i < _controllers.length; i++) {
@@ -309,11 +334,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         tempList.add(_controllers[i]);
                       }
                     }
-                    
+
                     // Clear the original list and add all items from the temp list
                     _controllers.clear();
                     _controllers.addAll(tempList);
-                    
+
                     _hasUnsavedChanges = true;
                   });
                 },

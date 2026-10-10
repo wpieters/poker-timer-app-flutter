@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/blind_settings.dart';
+
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class ChipLevelEditor extends StatefulWidget {
@@ -25,6 +27,14 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
     _chipLevels = List.from(widget.chipLevels);
   }
 
+  @override
+  void didUpdateWidget(covariant ChipLevelEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.chipLevels, oldWidget.chipLevels)) {
+      _chipLevels = List.from(widget.chipLevels);
+    }
+  }
+
   void _showColorPicker(int index, bool isSmallBlind) {
     showDialog(
       context: context,
@@ -48,10 +58,7 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
               portraitOnly: true,
               colorPickerWidth: 300,
               paletteType: PaletteType.hsvWithHue,
-              labelTypes: const [
-                ColorLabelType.rgb,
-                ColorLabelType.hex,
-              ],
+              labelTypes: const [ColorLabelType.rgb, ColorLabelType.hex],
             ),
           ),
           actions: [
@@ -105,11 +112,8 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _chipLevels.length,
-          onReorder: (oldIndex, newIndex) {
+          onReorderItem: (oldIndex, newIndex) {
             setState(() {
-              if (oldIndex < newIndex) {
-                newIndex -= 1;
-              }
               // Create a new list and manipulate it to avoid removeAt which can cause issues in web
               final List<ChipLevel> newList = List.from(_chipLevels);
               final item = newList[oldIndex];
@@ -163,10 +167,12 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
                           DropdownButton<int>(
                             value: level.bigBlindMultiplier,
                             items: [1, 2, 4, 8, 16, 32, 64, 128]
-                                .map((value) => DropdownMenuItem(
-                                      value: value,
-                                      child: Text('×$value'),
-                                    ))
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text('×$value'),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: (value) {
                               if (value != null) {
@@ -183,11 +189,16 @@ class _ChipLevelEditorState extends State<ChipLevelEditor> {
                         onPressed: () {
                           setState(() {
                             // Create a new list without the item at index to avoid removeAt
-                            final indexToRemove = index; // Store the index to remove
-                            _chipLevels = List.from(_chipLevels.asMap().entries
-                              .where((entry) => entry.key != indexToRemove)
-                              .map((entry) => entry.value)
-                              .toList());
+                            final indexToRemove =
+                                index; // Store the index to remove
+                            _chipLevels = List.from(
+                              _chipLevels
+                                  .asMap()
+                                  .entries
+                                  .where((entry) => entry.key != indexToRemove)
+                                  .map((entry) => entry.value)
+                                  .toList(),
+                            );
                           });
                           widget.onChipLevelsChanged(_chipLevels);
                         },
