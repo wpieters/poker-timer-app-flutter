@@ -5,7 +5,11 @@ class BlindColors {
   final Color bigBlind;
   final int bigCount;
 
-  BlindColors({required this.smallBlind, required this.bigBlind, required this.bigCount});
+  BlindColors({
+    required this.smallBlind,
+    required this.bigBlind,
+    required this.bigCount,
+  });
 
   String getSmallCount() {
     return bigCount == 1 ? "1" : (bigCount / 2).toString();
@@ -18,10 +22,10 @@ class BlindColors {
 
 Color invertColor(Color color) {
   return Color.fromRGBO(
-    255 - color.red,
-    255 - color.green,
-    255 - color.blue,
-    color.opacity,
+    255 - (color.r * 255).round(),
+    255 - (color.g * 255).round(),
+    255 - (color.b * 255).round(),
+    color.a,
   );
 }
 
@@ -30,7 +34,14 @@ Widget buildBlindIcon(Color color, String text) {
     alignment: Alignment.center,
     children: [
       Icon(Icons.circle, color: color, size: 100.0),
-      Text(text, style: TextStyle(color: invertColor(color), fontWeight: FontWeight.bold, fontSize: 24)),
+      Text(
+        text,
+        style: TextStyle(
+          color: invertColor(color),
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+        ),
+      ),
     ],
   );
 }

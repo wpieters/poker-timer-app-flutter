@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 class ChipLevel {
@@ -14,8 +15,8 @@ class ChipLevel {
 
   Map<String, dynamic> toJson() {
     return {
-      'smallBlindColor': smallBlindColor.value,
-      'bigBlindColor': bigBlindColor.value,
+      'smallBlindColor': smallBlindColor.toARGB32(),
+      'bigBlindColor': bigBlindColor.toARGB32(),
       'bigBlindMultiplier': bigBlindMultiplier,
     };
   }

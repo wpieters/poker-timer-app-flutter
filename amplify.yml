@@ -1,0 +1,27 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 22
+        - mkdir -p .ci
+        - curl --fail --location --retry 3 https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.7-stable.tar.xz --output .ci/flutter.tar.xz
+        - tar -xf .ci/flutter.tar.xz -C .ci
+        - export FLUTTER_BIN="$PWD/.ci/flutter/bin/flutter"
+        - export PATH="$PWD/.ci/flutter/bin:$PATH"
+        - export PUB_CACHE="$PWD/.pub-cache"
+        - flutter --disable-analytics
+        - flutter --version
+        - flutter pub get --enforce-lockfile
+    build:
+      commands:
+        - flutter analyze --no-pub
+        - flutter test --no-pub
+        - scripts/build-web.sh --no-pub
+  artifacts:
+    baseDirectory: build/web
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .pub-cache/**/*
