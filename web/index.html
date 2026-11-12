@@ -23,7 +23,8 @@
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#2196F3">
   <meta name="apple-mobile-web-app-title" content="poker_timer">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -33,9 +34,26 @@
   <title>poker_timer</title>
   <link rel="manifest" href="manifest.json">
 
+  <style>
+    /* iOS 26+ PWA: an opaque fixed strip at the top (together with the
+       "default" status bar style above) stops Safari drawing its status bar
+       blur over the app. Must be a real element, not a ::before. */
+    #ios-status-strip {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 12px;
+      background: #2196F3;
+      z-index: 2147483647;
+      pointer-events: none;
+    }
+  </style>
+
 </head>
 
 <body>
+  <div id="ios-status-strip"></div>
   <script src="flutter_bootstrap.js" async></script>
   <script>
     if ('serviceWorker' in navigator) {
